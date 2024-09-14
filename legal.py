@@ -96,13 +96,24 @@ def provide_therapeutic_response(answer):
 
 # Function to handle additional questions from the user using LangChain
 def handle_additional_questions(user_question):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-    docs = vector_store.similarity_search(user_question)
-    
-    chain = get_conversational_chain()
-    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
-    return response["output_text"]
+    try:
+        start_time = time.time()
+        
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+        docs = vector_store.similarity_search(user_question)
+        
+        chain = get_conversational_chain()
+        response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+        
+        end_time = time.time()
+        st.write(f"Time taken for additional questions handling: {end_time - start_time} seconds")
+        
+        return response["output_text"]
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
+        return "Sorry, there was an error handling your question. Please try again later."
+
 
 # Function to create a conversational AI chain with prompt engineering
 def get_conversational_chain():
