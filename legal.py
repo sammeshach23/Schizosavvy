@@ -5,8 +5,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Embedding
 import numpy as np
 import os
-import requests
 from dotenv import load_dotenv
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -90,10 +90,10 @@ def provide_therapeutic_response(answer):
     
     return response
 
-# Function to handle additional questions from the user using the Google Generative AI API
+# Function to handle additional questions from the user using Google Generative AI
 def handle_additional_questions(user_question):
     api_key = os.getenv("GOOGLE_API_KEY")
-    url = "https://your-generative-ai-endpoint.com/v1/generate"  # Replace with actual endpoint URL
+    url = "https://generativeai.googleapis.com/v1beta2/models/gemini-pro:generateText"  # Replace with actual endpoint URL
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -102,17 +102,20 @@ def handle_additional_questions(user_question):
 
     data = {
         "prompt": user_question,
-        "model": "gemini-pro",  # Adjust according to your model or API documentation
-        "max_tokens": 150  # Adjust based on your needs and API capabilities
+        "max_tokens": 150,  # Adjust based on your needs and API capabilities
+        "temperature": 0.3,  # Adjust based on your needs
+        "top_p": 1.0,  # Adjust based on your needs
+        "frequency_penalty": 0.0,  # Adjust based on your needs
+        "presence_penalty": 0.0,  # Adjust based on your needs
     }
 
-    response = requests.post(url, headers=headers, json=data)
-
-    if response.status_code == 200:
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()  # Raise an HTTPError for bad responses
         result = response.json()
         return result.get('choices', [{}])[0].get('text', 'Sorry, I did not understand that.')
-    else:
-        return f"Error: {response.status_code} - {response.text}"
+    except requests.RequestException as e:
+        return f"Error: {str(e)}"
 
 # Streamlit app
 def main():
@@ -120,10 +123,10 @@ def main():
 
     # Sidebar for app information
     st.sidebar.title("About the App")
-    st.sidebar.info(""" 
+    st.sidebar.info("""
     **Schizosavvy** is an interactive chatbot designed to help individuals monitor their cognitive and emotional states through a series of questions. 
     The chatbot uses an LSTM model to predict the stage of schizophrenia based on user responses. Additionally, it answers any follow-up questions in an empathetic manner.
-
+    
     **Features:**
     - Cognitive and emotional state monitoring.
     - Schizophrenia stage prediction (Stage 1, Stage 2, Stage 3).
@@ -174,7 +177,7 @@ def main():
                 st.session_state.answers.append(answer)
                 st.session_state.current_question += 1
                 st.session_state.therapeutic_response = ""  # Clear therapeutic response for the next question
-                st.rerun()  # Rerun to update the question (if this is still valid)
+                st.experimental_rerun()  # Rerun to update the question
         else:
             st.write("Please select an option to proceed.")
 
