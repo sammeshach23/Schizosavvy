@@ -93,8 +93,9 @@ def provide_therapeutic_response(answer):
 
 # Function to handle additional questions from the user using genai
 def handle_additional_questions(user_question):
-    response = genai.generate_response(prompt=user_question)
-    return response
+    model = genai.ChatGoogleGenerativeAI(model="gemini-pro")  # Replace with your model if necessary
+    response = model.generate(prompt=user_question)
+    return response['text']  # Assuming 'text' contains the response
 
 # Streamlit app
 def main():
