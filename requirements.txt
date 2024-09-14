@@ -4,3 +4,8 @@ python-dotenv
 langchain
 faiss-cpu
 google-generativeai
+google-generativeai==0.1.0
+streamlit==1.25.0
+tensorflow==2.12.0  # For any LSTM model usage
+
+
