@@ -6,7 +6,10 @@ from tensorflow.keras.layers import LSTM, Dense, Embedding
 import numpy as np
 import os
 from dotenv import load_dotenv
-import requests
+from langchain.vectorstores import FAISS
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain.chains.question_answering import load_qa_chain
+from langchain.prompts import PromptTemplate
 
 # Load environment variables
 load_dotenv()
@@ -91,31 +94,29 @@ def provide_therapeutic_response(answer):
     
     return response
 
-# Function to handle additional questions from the user using Google Generative AI
+# Function to handle additional questions from the user using LangChain
 def handle_additional_questions(user_question):
-    url = "https://generativeai.googleapis.com/v1beta2/models/gemini-pro:generateText"  # Replace with actual endpoint URL
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+    docs = vector_store.similarity_search(user_question)
     
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    
-    data = {
-        "prompt": user_question,
-        "max_tokens": 150,  # Adjust based on your needs and API capabilities
-        "temperature": 0.3,  # Adjust based on your needs
-        "top_p": 1.0,  # Adjust based on your needs
-        "frequency_penalty": 0.0,  # Adjust based on your needs
-        "presence_penalty": 0.0,  # Adjust based on your needs
-    }
-    
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()  # Raise an HTTPError for bad responses
-        result = response.json()
-        return result.get('choices', [{}])[0].get('text', 'Sorry, I did not understand that.')
-    except requests.RequestException as e:
-        return f"Error: {str(e)}"
+    chain = get_conversational_chain()
+    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    return response["output_text"]
+
+# Function to create a conversational AI chain with prompt engineering
+def get_conversational_chain():
+    prompt_template = """
+    You are a chatbot designed to provide therapeutic responses for individuals with schizophrenia. 
+    Answer in a supportive, empathetic manner based on the context provided.
+    Context:\n{context}\n
+    Question:\n{question}\n
+    Answer:
+    """
+    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
+    return chain
 
 # Streamlit app
 def main():
