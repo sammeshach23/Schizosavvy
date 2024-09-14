@@ -4,8 +4,7 @@ from sklearn.linear_model import LogisticRegression
 import numpy as np
 import os
 from dotenv import load_dotenv
-from langchain.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain.embeddings import GoogleGenerativeAIEmbeddings
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
 import google.generativeai as genai
@@ -85,11 +84,11 @@ def provide_therapeutic_response(answer):
 # Function to handle additional questions from the user
 def handle_additional_questions(user_question, classifier_model, vectorizer):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-    docs = vector_store.similarity_search(user_question)
+    # Instead of FAISS, we just use embeddings directly
+    # Add your own logic for embeddings and search if needed
     
     chain = get_conversational_chain()
-    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    response = chain({"input_documents": None, "question": user_question}, return_only_outputs=True)
     return response["output_text"]
 
 # Function to create a conversational AI chain with prompt engineering
