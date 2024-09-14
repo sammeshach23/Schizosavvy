@@ -10,9 +10,11 @@ from langchain.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
+import google.generativeai as genai
 
 # Load environment variables
 load_dotenv()
+genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Initialize the question dataset (example questions for schizophrenia)
 questionnaire = [
@@ -39,6 +41,7 @@ def prepare_data_for_lstm(answers):
     X = pad_sequences(sequences, maxlen=100)
     
     # Example labels - Replace with actual schizophrenia stage data.
+    # 0: Stage 1, 1: Stage 2, 2: Stage 3
     y = np.array([0 if i % 3 == 0 else 1 if i % 3 == 1 else 2 for i in range(len(answers))])
     
     return X, y, tokenizer
@@ -93,7 +96,7 @@ def provide_therapeutic_response(answer):
     return response
 
 # Function to handle additional questions from the user
-def handle_additional_questions(user_question):
+def handle_additional_questions(user_question, lstm_model, tokenizer):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
     vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     docs = vector_store.similarity_search(user_question)
@@ -189,7 +192,7 @@ def main():
         # Handle additional user questions
         user_question = st.text_input("Do you have any additional questions?")
         if user_question:
-            response = handle_additional_questions(user_question)
+            response = handle_additional_questions(user_question, lstm_model, tokenizer)
             st.write(f"**Chatbot Response:** {response}")
 
 if __name__ == "__main__":
