@@ -125,10 +125,10 @@ def main():
 
     # Sidebar for app information
     st.sidebar.title("About the App")
-    st.sidebar.info("""
+    st.sidebar.info(""" 
     **Schizosavvy** is an interactive chatbot designed to help individuals monitor their cognitive and emotional states through a series of questions. 
     The chatbot uses an LSTM model to predict the stage of schizophrenia based on user responses. Additionally, it answers any follow-up questions in an empathetic manner.
-    
+
     **Features:**
     - Cognitive and emotional state monitoring.
     - Schizophrenia stage prediction (Stage 1, Stage 2, Stage 3).
@@ -179,7 +179,7 @@ def main():
                 st.session_state.answers.append(answer)
                 st.session_state.current_question += 1
                 st.session_state.therapeutic_response = ""  # Clear therapeutic response for the next question
-                st.experimental_rerun()  # Rerun to update the question
+                st.experimental_memo.clear()  # Clears cache, forcing a page refresh
         else:
             st.write("Please select an option to proceed.")
 
