@@ -1,14 +1,18 @@
 import streamlit as st
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.linear_model import LogisticRegression
 import numpy as np
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Embedding
+from google.generativeai import GeminiClient
 
 # Load environment variables
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+
+# Initialize the Gemini API client
+client = GeminiClient(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Initialize the question dataset (example questions for schizophrenia)
 questionnaire = [
@@ -24,35 +28,47 @@ questionnaire = [
     "I see, feel, smell, or taste things that other people think aren't there."
 ]
 
-# Options for the answers
-options = ["Never", "Rarely", "Sometimes", "Often", "Always"]
+# Options for the answers, with a prompt as the first option
+options = ["Choose your response", "Never", "Rarely", "Sometimes", "Often", "Always"]
 
-# Function to prepare data for a classifier and generate labels
-def prepare_data_for_classifier(answers):
-    vectorizer = CountVectorizer()
-    X = vectorizer.fit_transform(answers).toarray()
+# Function to prepare data for LSTM and generate labels
+def prepare_data_for_lstm(answers):
+    tokenizer = Tokenizer(num_words=5000)
+    tokenizer.fit_on_texts(answers)
+    sequences = tokenizer.texts_to_sequences(answers)
+    X = pad_sequences(sequences, maxlen=100)
     
     # Example labels - Replace with actual schizophrenia stage data.
+    # 0: Stage 1, 1: Stage 2, 2: Stage 3
     y = np.array([0 if i % 3 == 0 else 1 if i % 3 == 1 else 2 for i in range(len(answers))])
     
-    return X, y, vectorizer
+    return X, y, tokenizer
 
-# Build and train a Logistic Regression model
-def build_classifier_model(X, y):
-    model = LogisticRegression()
-    model.fit(X, y)
+# Build and train the LSTM model
+def build_lstm_model(X, y):
+    model = Sequential()
+    model.add(Embedding(input_dim=5000, output_dim=128))
+    model.add(LSTM(units=128, return_sequences=True))
+    model.add(LSTM(units=128))
+    model.add(Dense(units=1, activation='sigmoid'))  # Binary output for stage prediction
+
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    
+    # Train the model with validation
+    model.fit(X, y, epochs=10, batch_size=32, validation_split=0.2)
+    
     return model
 
 # Function to predict the stage of schizophrenia as Stage 1, Stage 2, or Stage 3
-def predict_stage(classifier_model, vectorizer):
-    X = vectorizer.transform(st.session_state.answers).toarray()
-    predictions = classifier_model.predict(X)
+def predict_stage(lstm_model, tokenizer):
+    X, _, _ = prepare_data_for_lstm(st.session_state.answers)
+    predictions = lstm_model.predict(X)
     avg_pred = np.mean(predictions)  # Average prediction across questions
     
     # Predict stage based on cognitive level
-    if avg_pred < 1:
+    if avg_pred < 0.3:
         stage = "Stage 1"
-    elif avg_pred < 2:
+    elif avg_pred < 0.7:
         stage = "Stage 2"
     else:
         stage = "Stage 3"
@@ -77,11 +93,14 @@ def provide_therapeutic_response(answer):
     
     return response
 
-# Function to handle additional questions from the user via Gemini AI
+# Function to handle additional questions from the user via Gemini API
 def handle_additional_questions(user_question):
     # Generate the response using Gemini API
-    response = genai.generate_message(model="gemini-pro", prompt=user_question, temperature=0.3)
-    return response['candidates'][0]['message']
+    response = client.generate_response(
+        model="gemini-pro",
+        prompt=user_question
+    )
+    return response['choices'][0]['message']['content']
 
 # Streamlit app
 def main():
@@ -91,7 +110,7 @@ def main():
     st.sidebar.title("About the App")
     st.sidebar.info("""
     **Schizosavvy** is an interactive chatbot designed to help individuals monitor their cognitive and emotional states through a series of questions. 
-    The chatbot uses a classifier model to predict the stage of schizophrenia based on user responses. Additionally, it answers any follow-up questions in an empathetic manner.
+    The chatbot uses an LSTM model to predict the stage of schizophrenia based on user responses. Additionally, it answers any follow-up questions in an empathetic manner.
     
     **Features:**
     - Cognitive and emotional state monitoring.
@@ -101,6 +120,19 @@ def main():
 
     Please remember that this chatbot is not a replacement for professional mental health advice.
     """)
+
+    # Add a soothing background color
+    st.markdown("""
+    <style>
+    .stApp {
+        font-family: Arial, sans-serif;
+    }
+    .stButton button {
+        background-color: #4CAF50;
+        color: white;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     st.title("🧠 Schizosavvy")
     st.subheader("An empathetic chatbot for cognitive and emotional support.")
@@ -118,9 +150,11 @@ def main():
         # Ask the current question
         question = questionnaire[st.session_state.current_question]
         st.write(f"**Question {st.session_state.current_question + 1}:** {question}")
+        
+        # Use radio buttons instead of dropdown for options
         answer = st.radio("Choose your response:", options, key=f"question_{st.session_state.current_question}")
 
-        if answer != "":
+        if answer != "Choose your response":
             # Provide therapeutic response after selecting an answer
             st.session_state.therapeutic_response = provide_therapeutic_response(answer)
             st.write(f"**Response:** {st.session_state.therapeutic_response}")
@@ -129,14 +163,16 @@ def main():
             if st.button("Next", key=f"next_{st.session_state.current_question}"):
                 st.session_state.answers.append(answer)
                 st.session_state.current_question += 1
+                st.session_state.therapeutic_response = ""  # Clear therapeutic response for the next question
+                st.experimental_rerun()  # Rerun to update the question
         else:
             st.write("Please select an option to proceed.")
 
     else:
-        # Build and use the classifier model after all questions are answered
-        X, y, vectorizer = prepare_data_for_classifier(st.session_state.answers)
-        classifier_model = build_classifier_model(X, y)
-        predict_stage(classifier_model, vectorizer)
+        # Build and use the LSTM model after all questions are answered
+        X, y, tokenizer = prepare_data_for_lstm(st.session_state.answers)
+        lstm_model = build_lstm_model(X, y)  # Now passing both X and y
+        predict_stage(lstm_model, tokenizer)
 
         # Handle additional user questions
         user_question = st.text_input("Do you have any additional questions?")
