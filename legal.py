@@ -10,6 +10,7 @@ import requests
 
 # Load environment variables
 load_dotenv()
+api_key = os.getenv("GOOGLE_API_KEY")
 
 # Initialize the question dataset (example questions for schizophrenia)
 questionnaire = [
@@ -92,14 +93,13 @@ def provide_therapeutic_response(answer):
 
 # Function to handle additional questions from the user using Google Generative AI
 def handle_additional_questions(user_question):
-    api_key = os.getenv("GOOGLE_API_KEY")
     url = "https://generativeai.googleapis.com/v1beta2/models/gemini-pro:generateText"  # Replace with actual endpoint URL
-
+    
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-
+    
     data = {
         "prompt": user_question,
         "max_tokens": 150,  # Adjust based on your needs and API capabilities
@@ -108,7 +108,7 @@ def handle_additional_questions(user_question):
         "frequency_penalty": 0.0,  # Adjust based on your needs
         "presence_penalty": 0.0,  # Adjust based on your needs
     }
-
+    
     try:
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()  # Raise an HTTPError for bad responses
