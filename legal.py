@@ -6,10 +6,6 @@ from tensorflow.keras.layers import LSTM, Dense, Embedding
 import numpy as np
 import os
 from dotenv import load_dotenv
-from langchain.vectorstores import FAISS
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
 import google.generativeai as genai
 
 # Load environment variables
@@ -95,29 +91,10 @@ def provide_therapeutic_response(answer):
     
     return response
 
-# Function to handle additional questions from the user
-def handle_additional_questions(user_question, lstm_model, tokenizer):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-    docs = vector_store.similarity_search(user_question)
-    
-    chain = get_conversational_chain()
-    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
-    return response["output_text"]
-
-# Function to create a conversational AI chain with prompt engineering
-def get_conversational_chain():
-    prompt_template = """
-    You are a chatbot designed to provide therapeutic responses for individuals with schizophrenia. 
-    Answer in a supportive, empathetic manner based on the context provided.
-    Context:\n{context}\n
-    Question:\n{question}\n
-    Answer:
-    """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
-    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
-    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
-    return chain
+# Function to handle additional questions from the user using genai
+def handle_additional_questions(user_question):
+    response = genai.generate_response(prompt=user_question)
+    return response
 
 # Streamlit app
 def main():
@@ -125,7 +102,7 @@ def main():
 
     # Sidebar for app information
     st.sidebar.title("About the App")
-    st.sidebar.info("""
+    st.sidebar.info(""" 
     **Schizosavvy** is an interactive chatbot designed to help individuals monitor their cognitive and emotional states through a series of questions. 
     The chatbot uses an LSTM model to predict the stage of schizophrenia based on user responses. Additionally, it answers any follow-up questions in an empathetic manner.
 
@@ -179,7 +156,7 @@ def main():
                 st.session_state.answers.append(answer)
                 st.session_state.current_question += 1
                 st.session_state.therapeutic_response = ""  # Clear therapeutic response for the next question
-                st.rerun()  # Rerun to update the question (if this is still valid)
+                st.experimental_rerun()  # Rerun to update the question (if this is still valid)
         else:
             st.write("Please select an option to proceed.")
 
@@ -192,7 +169,7 @@ def main():
         # Handle additional user questions
         user_question = st.text_input("Do you have any additional questions?")
         if user_question:
-            response = handle_additional_questions(user_question, lstm_model, tokenizer)
+            response = handle_additional_questions(user_question)
             st.write(f"**Chatbot Response:** {response}")
 
 if __name__ == "__main__":
