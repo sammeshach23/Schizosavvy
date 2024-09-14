@@ -5,12 +5,11 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Embedding
 import numpy as np
 import os
+import requests
 from dotenv import load_dotenv
-import google.generativeai as genai
 
 # Load environment variables
 load_dotenv()
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Initialize the question dataset (example questions for schizophrenia)
 questionnaire = [
@@ -91,11 +90,29 @@ def provide_therapeutic_response(answer):
     
     return response
 
-# Function to handle additional questions from the user using genai
+# Function to handle additional questions from the user using the Google Generative AI API
 def handle_additional_questions(user_question):
-    model = genai.ChatGoogleGenerativeAI(model="gemini-pro")  # Replace with your model if necessary
-    response = model.generate(prompt=user_question)
-    return response['text']  # Assuming 'text' contains the response
+    api_key = os.getenv("GOOGLE_API_KEY")
+    url = "https://your-generative-ai-endpoint.com/v1/generate"  # Replace with actual endpoint URL
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    data = {
+        "prompt": user_question,
+        "model": "gemini-pro",  # Adjust according to your model or API documentation
+        "max_tokens": 150  # Adjust based on your needs and API capabilities
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
+        result = response.json()
+        return result.get('choices', [{}])[0].get('text', 'Sorry, I did not understand that.')
+    else:
+        return f"Error: {response.status_code} - {response.text}"
 
 # Streamlit app
 def main():
@@ -157,7 +174,7 @@ def main():
                 st.session_state.answers.append(answer)
                 st.session_state.current_question += 1
                 st.session_state.therapeutic_response = ""  # Clear therapeutic response for the next question
-                st.experimental_rerun()  # Rerun to update the question (if this is still valid)
+                st.rerun()  # Rerun to update the question (if this is still valid)
         else:
             st.write("Please select an option to proceed.")
 
