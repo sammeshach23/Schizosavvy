@@ -179,7 +179,7 @@ def main():
                 st.session_state.answers.append(answer)
                 st.session_state.current_question += 1
                 st.session_state.therapeutic_response = ""  # Clear therapeutic response for the next question
-                st.experimental_rerun()  # Rerun to update the question (if this is still valid)
+                st.rerun()  # Rerun to update the question (if this is still valid)
         else:
             st.write("Please select an option to proceed.")
 
