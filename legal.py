@@ -1,18 +1,18 @@
 import streamlit as st
-import numpy as np
-import os
-from dotenv import load_dotenv
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Embedding
-from google.generativeai import GeminiClient
+import numpy as np
+import os
+from dotenv import load_dotenv
+from langchain.vectorstores import FAISS
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain.chains.question_answering import load_qa_chain
+from langchain.prompts import PromptTemplate
 
 # Load environment variables
 load_dotenv()
-
-# Initialize the Gemini API client
-client = GeminiClient(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # Initialize the question dataset (example questions for schizophrenia)
 questionnaire = [
@@ -39,7 +39,6 @@ def prepare_data_for_lstm(answers):
     X = pad_sequences(sequences, maxlen=100)
     
     # Example labels - Replace with actual schizophrenia stage data.
-    # 0: Stage 1, 1: Stage 2, 2: Stage 3
     y = np.array([0 if i % 3 == 0 else 1 if i % 3 == 1 else 2 for i in range(len(answers))])
     
     return X, y, tokenizer
@@ -93,14 +92,29 @@ def provide_therapeutic_response(answer):
     
     return response
 
-# Function to handle additional questions from the user via Gemini API
+# Function to handle additional questions from the user
 def handle_additional_questions(user_question):
-    # Generate the response using Gemini API
-    response = client.generate_response(
-        model="gemini-pro",
-        prompt=user_question
-    )
-    return response['choices'][0]['message']['content']
+    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+    docs = vector_store.similarity_search(user_question)
+    
+    chain = get_conversational_chain()
+    response = chain({"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    return response["output_text"]
+
+# Function to create a conversational AI chain with prompt engineering
+def get_conversational_chain():
+    prompt_template = """
+    You are a chatbot designed to provide therapeutic responses for individuals with schizophrenia. 
+    Answer in a supportive, empathetic manner based on the context provided.
+    Context:\n{context}\n
+    Question:\n{question}\n
+    Answer:
+    """
+    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
+    return chain
 
 # Streamlit app
 def main():
@@ -150,11 +164,9 @@ def main():
         # Ask the current question
         question = questionnaire[st.session_state.current_question]
         st.write(f"**Question {st.session_state.current_question + 1}:** {question}")
-        
-        # Use radio buttons instead of dropdown for options
-        answer = st.radio("Choose your response:", options, key=f"question_{st.session_state.current_question}")
+        answer = st.radio("Choose your response:", options[1:], key=f"question_{st.session_state.current_question}")
 
-        if answer != "Choose your response":
+        if answer:
             # Provide therapeutic response after selecting an answer
             st.session_state.therapeutic_response = provide_therapeutic_response(answer)
             st.write(f"**Response:** {st.session_state.therapeutic_response}")
