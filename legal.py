@@ -6,7 +6,7 @@ from tensorflow.keras.layers import LSTM, Dense, Embedding
 import numpy as np
 import os
 from dotenv import load_dotenv
-from langchain_community.vectorstores import FAISS
+from langchain.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.prompts import PromptTemplate
@@ -179,7 +179,7 @@ def main():
                 st.session_state.answers.append(answer)
                 st.session_state.current_question += 1
                 st.session_state.therapeutic_response = ""  # Clear therapeutic response for the next question
-                st.experimental_rerun()  # Rerun to update the question (if this is still valid)
+                st.rerun()  # Rerun to update the question (if this is still valid)
         else:
             st.write("Please select an option to proceed.")
 
@@ -193,8 +193,7 @@ def main():
         user_question = st.text_input("Do you have any additional questions?")
         if user_question:
             response = handle_additional_questions(user_question, lstm_model, tokenizer)
-            st.write("**Chatbot Response:**", response)
+            st.write(f"**Chatbot Response:** {response}")
 
-# Run the app
 if __name__ == "__main__":
     main()
