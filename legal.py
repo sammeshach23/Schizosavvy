@@ -4,9 +4,6 @@ from sklearn.linear_model import LogisticRegression
 import numpy as np
 import os
 from dotenv import load_dotenv
-from langchain.embeddings import GoogleGenerativeAIEmbeddings
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
 import google.generativeai as genai
 
 # Load environment variables
@@ -27,7 +24,7 @@ questionnaire = [
     "I see, feel, smell, or taste things that other people think aren't there."
 ]
 
-# Options for the answers, with a prompt as the first option
+# Options for the answers
 options = ["Never", "Rarely", "Sometimes", "Often", "Always"]
 
 # Function to prepare data for a classifier and generate labels
@@ -36,7 +33,6 @@ def prepare_data_for_classifier(answers):
     X = vectorizer.fit_transform(answers).toarray()
     
     # Example labels - Replace with actual schizophrenia stage data.
-    # 0: Stage 1, 1: Stage 2, 2: Stage 3
     y = np.array([0 if i % 3 == 0 else 1 if i % 3 == 1 else 2 for i in range(len(answers))])
     
     return X, y, vectorizer
@@ -81,29 +77,11 @@ def provide_therapeutic_response(answer):
     
     return response
 
-# Function to handle additional questions from the user
-def handle_additional_questions(user_question, classifier_model, vectorizer):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    # Instead of FAISS, we just use embeddings directly
-    # Add your own logic for embeddings and search if needed
-    
-    chain = get_conversational_chain()
-    response = chain({"input_documents": None, "question": user_question}, return_only_outputs=True)
-    return response["output_text"]
-
-# Function to create a conversational AI chain with prompt engineering
-def get_conversational_chain():
-    prompt_template = """
-    You are a chatbot designed to provide therapeutic responses for individuals with schizophrenia. 
-    Answer in a supportive, empathetic manner based on the context provided.
-    Context:\n{context}\n
-    Question:\n{question}\n
-    Answer:
-    """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
-    prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
-    chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
-    return chain
+# Function to handle additional questions from the user via Gemini AI
+def handle_additional_questions(user_question):
+    # Generate the response using Gemini API
+    response = genai.generate_message(model="gemini-pro", prompt=user_question, temperature=0.3)
+    return response['candidates'][0]['message']
 
 # Streamlit app
 def main():
@@ -142,7 +120,7 @@ def main():
         st.write(f"**Question {st.session_state.current_question + 1}:** {question}")
         answer = st.radio("Choose your response:", options, key=f"question_{st.session_state.current_question}")
 
-        if answer:
+        if answer != "":
             # Provide therapeutic response after selecting an answer
             st.session_state.therapeutic_response = provide_therapeutic_response(answer)
             st.write(f"**Response:** {st.session_state.therapeutic_response}")
@@ -165,7 +143,7 @@ def main():
         # Handle additional user questions
         user_question = st.text_input("Do you have any additional questions?")
         if user_question:
-            response = handle_additional_questions(user_question, classifier_model, vectorizer)
+            response = handle_additional_questions(user_question)
             st.write(f"**Chatbot Response:** {response}")
 
 if __name__ == "__main__":
